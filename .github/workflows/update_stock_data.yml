@@ -1,0 +1,289 @@
+name: Update Stock Historical Data
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-sp500:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        chunk: [0, 1, 2, 3, 4, 5, 6, 7]
+      fail-fast: false
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run SP500 Data Update (Chunk ${{ matrix.chunk }})
+        run: python update_stock_data.py --group sp500 --chunk-index ${{ matrix.chunk }} --total-chunks 8
+        
+      - name: Commit SP500 Data to Temporary Branch
+        run: |
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Create and checkout a new branch for SP500 data
+          git checkout -b temp-sp500-${{ matrix.chunk }}
+          
+          # Add and commit SP500 data
+          git add data/SP500/
+          git commit -m "Update SP500 data (chunk ${{ matrix.chunk }}) [skip ci]" || echo "No SP500 changes to commit"
+          
+          # Push the branch
+          git push -f origin temp-sp500-${{ matrix.chunk }}
+
+  update-hangseng:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run Hang Seng Tech Data Update
+        run: python update_stock_data.py --group hangseng
+        
+      - name: Commit Hang Seng Data to Temporary Branch
+        run: |
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Create and checkout a new branch for Hang Seng data
+          git checkout -b temp-hangseng
+          
+          # Add and commit Hang Seng data
+          git add data/HangSengTech/
+          git commit -m "Update Hang Seng Tech data [skip ci]" || echo "No Hang Seng changes to commit"
+          
+          # Push the branch
+          git push -f origin temp-hangseng
+
+  update-mag7:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run MAG7 Data Update
+        run: python update_stock_data.py --group mag7
+        
+      - name: Commit MAG7 Data to Temporary Branch
+        run: |
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Create and checkout a new branch for MAG7 data
+          git checkout -b temp-mag7
+          
+          # Add and commit MAG7 data
+          git add data/MAG7/
+          git commit -m "Update MAG7 data [skip ci]" || echo "No MAG7 changes to commit"
+          
+          # Push the branch
+          git push -f origin temp-mag7
+
+  update-indexes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run Indexes Data Update
+        run: python update_stock_data.py --group indexes
+        
+      - name: Commit Indexes Data to Temporary Branch
+        run: |
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Create and checkout a new branch for Indexes data
+          git checkout -b temp-indexes
+          
+          # Add and commit Indexes data
+          git add data/Indexes/
+          git commit -m "Update Indexes data [skip ci]" || echo "No Indexes changes to commit"
+          
+          # Push the branch
+          git push -f origin temp-indexes
+
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Update README
+        run: python update_stock_data.py --update-readme-only
+        
+      - name: Commit README to Temporary Branch
+        run: |
+          # Configure git
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Create and checkout a new branch for README
+          git checkout -b temp-readme
+          
+          # Add and commit README
+          git add README.md
+          git commit -m "Update README [skip ci]" || echo "No README changes to commit"
+          
+          # Push the branch
+          git push -f origin temp-readme
+
+  git-operations:
+    needs: [update-sp500, update-hangseng, update-mag7, update-indexes, update-readme]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for all branches
+
+      - name: Merge All Temporary Branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Configure git for the GitHub Actions bot
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Fetch all branches
+          git fetch origin
+          
+          # Create a new orphan branch (disconnected from history)
+          git checkout --orphan consolidated-update
+          
+          # Remove everything from the working directory
+          git rm -rf .
+          
+          # Merge data from SP500 branch chunks if they exist
+          for i in {0..7}; do
+            if git ls-remote --heads origin temp-sp500-$i | grep temp-sp500-$i; then
+              git checkout origin/temp-sp500-$i -- data/SP500/
+              echo "Merged SP500 data chunk $i"
+            fi
+          done
+          
+          # Merge data from Hang Seng branch if it exists
+          if git ls-remote --heads origin temp-hangseng | grep temp-hangseng; then
+            git checkout origin/temp-hangseng -- data/HangSengTech/
+            echo "Merged Hang Seng Tech data"
+          fi
+          
+          # Merge data from MAG7 branch if it exists
+          if git ls-remote --heads origin temp-mag7 | grep temp-mag7; then
+            git checkout origin/temp-mag7 -- data/MAG7/
+            echo "Merged MAG7 data"
+          fi
+          
+          # Merge data from Indexes branch if it exists
+          if git ls-remote --heads origin temp-indexes | grep temp-indexes; then
+            git checkout origin/temp-indexes -- data/Indexes/
+            echo "Merged Indexes data"
+          fi
+          
+          # Merge README from its branch if it exists
+          if git ls-remote --heads origin temp-readme | grep temp-readme; then
+            git checkout origin/temp-readme -- README.md
+            echo "Merged README"
+          fi
+          
+          # Checkout other necessary files from main
+          git checkout origin/main -- update_stock_data.py .github/ .gitignore LICENSE
+          
+          # Add all files to the new branch
+          git add -A
+          
+          # Commit with a consolidated message
+          git commit -m "Update stock historical data [skip ci]" || echo "No changes to commit"
+          
+          # Force replace the main branch with our consolidated branch
+          git branch -D main || true
+          git branch -m main
+          git push -f origin main
+          
+          # Clean up temporary branches
+          for i in {0..7}; do
+            git push origin --delete temp-sp500-$i || echo "No temp-sp500-$i branch to delete"
+          done
+          git push origin --delete temp-hangseng || echo "No temp-hangseng branch to delete"
+          git push origin --delete temp-mag7 || echo "No temp-mag7 branch to delete"
+          git push origin --delete temp-indexes || echo "No temp-indexes branch to delete"
+          git push origin --delete temp-readme || echo "No temp-readme branch to delete"
+
