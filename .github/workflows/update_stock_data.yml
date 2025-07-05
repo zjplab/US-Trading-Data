@@ -1,0 +1,245 @@
+name: Update Stock Historical Data
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-sp500:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        chunk: [0, 1, 2, 3, 4, 5, 6, 7]
+      fail-fast: false
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run SP500 Data Update (Chunk ${{ matrix.chunk }})
+        run: python update_stock_data.py --group sp500 --chunk-index ${{ matrix.chunk }} --total-chunks 8
+
+      - name: Upload SP500 Data Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sp500-data-chunk-${{ matrix.chunk }}
+          path: data/SP500/
+
+  update-hangseng:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run Hang Seng Tech Data Update
+        run: python update_stock_data.py --group hangseng
+
+      - name: Upload Hang Seng Tech Data Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hangseng-data
+          path: data/HangSengTech/
+
+  update-mag7:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run MAG7 Data Update
+        run: python update_stock_data.py --group mag7
+
+      - name: Upload MAG7 Data Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mag7-data
+          path: data/MAG7/
+
+  update-indexes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Run Indexes Data Update
+        run: python update_stock_data.py --group indexes
+
+      - name: Upload Indexes Data Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: indexes-data
+          path: data/Indexes/
+
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: uv pip install --system -r requirements.txt
+
+      - name: Update README
+        run: python update_stock_data.py --update-readme-only
+
+      - name: Upload README Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme
+          path: README.md
+
+  commit-to-main:
+    needs: [update-sp500, update-hangseng, update-mag7, update-indexes, update-readme]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create new orphan branch and commit artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Configure Git identity for GitHub Actions
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          
+          # Save important root files before creating orphan branch
+          mkdir -p /tmp/root_files
+          cp -f LICENSE /tmp/root_files/ 2>/dev/null || true
+          cp -f .gitignore /tmp/root_files/ 2>/dev/null || true
+          cp -f requirements.txt /tmp/root_files/ 2>/dev/null || true
+          cp -f update_stock_data.py /tmp/root_files/ 2>/dev/null || true
+          cp -f .github/workflows/update_stock_data.yml /tmp/root_files/ 2>/dev/null || true
+          
+          # Create an orphan branch and remove all files from working directory.
+          git checkout --orphan consolidated-update
+          git rm -rf .
+          
+          # Create target directories for each group.
+          mkdir -p data/SP500 data/HangSengTech data/MAG7 data/Indexes
+          mkdir -p .github/workflows
+          
+          # Restore important root files
+          cp -f /tmp/root_files/LICENSE . 2>/dev/null || true
+          cp -f /tmp/root_files/.gitignore . 2>/dev/null || true
+          cp -f /tmp/root_files/requirements.txt . 2>/dev/null || true
+          cp -f /tmp/root_files/update_stock_data.py . 2>/dev/null || true
+          
+          # Unzip (copy) SP500 artifacts into data/SP500.
+          if [ -d "artifacts" ]; then
+            for d in artifacts/sp500-data-chunk-*; do
+              if [ -d "$d" ]; then
+                cp -R "$d"/* data/SP500/
+              fi
+            done
+          fi
+          
+          # Unzip Hang Seng artifact.
+          if [ -d "artifacts/hangseng-data" ]; then
+            cp -R artifacts/hangseng-data/* data/HangSengTech/
+          fi
+          
+          # Unzip MAG7 artifact.
+          if [ -d "artifacts/mag7-data" ]; then
+            cp -R artifacts/mag7-data/* data/MAG7/
+          fi
+          
+          # Unzip Indexes artifact.
+          if [ -d "artifacts/indexes-data" ]; then
+            cp -R artifacts/indexes-data/* data/Indexes/
+          fi
+          
+          # Copy README artifact to root if it exists.
+          if [ -d "artifacts/readme" ]; then
+            cp artifacts/readme/README.md .
+          fi
+          
+          # Copy workflow file to preserve GitHub Actions configuration
+          mkdir -p .github/workflows
+          cp -f /tmp/root_files/update_stock_data.yml .github/workflows/ 2>/dev/null || true
+          
+          # Clean up artifacts directory to save space
+          rm -rf artifacts
+          
+          git add -A
+          git commit -m "Consolidate updated stock historical data [skip ci]"
+          
+          # Force replace the main branch with the new orphan branch, cleaning old history.
+          git branch -D main || true
+          git branch -m main
+          git push -f origin main
