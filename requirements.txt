@@ -1,0 +1,7 @@
+# Core dependencies
+yfinance==1.5.1  # Keep pinned; update deliberately after validation
+pandas>=2.0.0
+lxml>=4.9.3
+requests>=2.31.0
+# For logging and datetime handling
+python-dateutil>=2.8.2
